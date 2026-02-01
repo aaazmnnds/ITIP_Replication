@@ -1,0 +1,19 @@
+# Data files
+*.RData
+*.csv
+*.rds
+
+# Plots and Images
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# System files
+.DS_Store
+.Rhistory
+.Rapp.history
+
+# Output directories
+results/
+logs/
