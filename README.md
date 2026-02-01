@@ -48,3 +48,13 @@ Rscript 14_validate_prop4.R
 ## Data Availability
 The simulation data is generated synthetically within the scripts.
 The MIMIC-III data used in Section 8 requires a signed data use agreement and cannot be shared. The script `41_real_world_validation.R` provides the analysis logic assuming the data is locally available in `../data/`. Users must obtain access via [PhysioNet](https://physionet.org/content/mimiciii/) to run this specific script.
+
+## Author & Contact
+
+**Azman Nads**  
+Informatics and Data Science Program  
+Graduate School of Advanced Science and Engineering  
+Hiroshima University, Japan  
+Email: `azmannads@msutawi-tawi.edu.ph`
+
+For questions regarding the code or the paper, please open a GitHub issue or contact the author via email.
