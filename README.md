@@ -52,9 +52,8 @@ The MIMIC-III data used in Section 8 requires a signed data use agreement and ca
 ## Author & Contact
 
 **Azman Nads**  
-Informatics and Data Science Program  
-Graduate School of Advanced Science and Engineering  
-Hiroshima University, Japan  
+Mindanao State University - Tawi-Tawi College of Technology and Oceanography  
+Bongao, Tawi-Tawi, Philippines  
 Email: `azmannads@msutawi-tawi.edu.ph`
 
 For questions regarding the code or the paper, please open a GitHub issue or contact the author via email.
