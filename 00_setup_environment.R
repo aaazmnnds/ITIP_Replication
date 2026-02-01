@@ -1,0 +1,33 @@
+# setup_environment.R
+# Install required R packages for ITIP research
+# Author: Azman Nads
+
+cat("Installing required R packages for ITIP...\n\n")
+
+# List of required packages
+required_packages <- c(
+  "entropy", # For entropy calculations
+  "BAS", # For Bayesian Adaptive Sampling
+  "testthat", # For unit testing
+  "ggplot2", # For visualization
+  "caret", # For cross-validation
+  "pROC" # For AUC calculation
+)
+
+# Install missing packages
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    cat(sprintf("Installing %s...\n", pkg))
+    install.packages(pkg, repos = "https://cloud.r-project.org/", quiet = TRUE)
+  } else {
+    cat(sprintf("✓ %s already installed\n", pkg))
+  }
+}
+
+cat("\n✓ All required packages are installed!\n")
+cat("\nYou can now run:\n")
+cat("  source('01_ig_calculation.R')\n")
+cat("  source('02_threshold_selection.R')\n")
+cat("  source('10_unit_tests.R')\n")
+cat("  run_all_tests()\n")
+
