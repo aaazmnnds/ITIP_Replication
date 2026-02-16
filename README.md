@@ -10,6 +10,9 @@ This repository contains the R code to reproduce the results and figures for the
 *   `14_validate_prop4.R`: Reproduces the empirical validation of the BAS proxy (Appendix B, Figure 3).
 *   `22_reproduce_toy_example.R`: Reproduces the "Illustrative Example" (Section 5, Table 2, Figure 2).
 *   `30_benchmark_baselines.R`: Reproduces the large-scale simulation benchmarks (Section 7, Table 3).
+*   `32_benchmark_mnar.R`: Reproduces the MNAR robustness study (Section 7.3).
+*   `33_benchmark_high_dim.R`: Reproduces the high-dimensional scalability study at $p=200$ (Section 7.4).
+*   `34_sensitivity_bins.R`: Reproduces the discretization sensitivity analysis (Section 9.3).
 *   `41_real_world_validation.R`: Code for the MIMIC-III application (Section 8).
 
 ## Prerequisites
@@ -38,6 +41,18 @@ Rscript 30_benchmark_baselines.R
 *   **Expected Output:** F1, Precision, and Recall scores for ITIP, LASSO, and Stability Selection across dimensions.
 *   **Runtime:** Approximately 1-2 hours depending on hardware (due to iterative simulations).
 *   **Parameters:** n=500, rho=0.5, beta=0.8, epsilon=0.005.
+
+### 4. MNAR Robustness (Section 7.3)
+To reproduce the stability study under informative missingness (MNAR):
+```bash
+Rscript 32_benchmark_mnar.R
+```
+
+### 5. High-Dimensional Scaling (Section 7.4)
+To verify ITIP performance at $p=200$ (40,000 interactions):
+```bash
+Rscript 33_benchmark_high_dim.R
+```
 
 ### 3. Proposition Validation (Appendix)
 To validate the correlation between BAS-proxy and Mutual Information:

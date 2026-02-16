@@ -7,9 +7,16 @@ library(missForest) # For imputation
 library(BAS) # For Bayesian Adaptive Sampling
 library(dplyr) # For data manipulation
 
-source("01_ig_calculation.R")
-source("02_threshold_selection.R")
-source("03_bas_utils.R")
+# Source dependencies (Robust to running from root or scripts dir)
+if (file.exists("01_ig_calculation.R")) {
+  source("01_ig_calculation.R")
+  source("02_threshold_selection.R")
+  source("03_bas_utils.R")
+} else {
+  source("scripts/01_ig_calculation.R")
+  source("scripts/02_threshold_selection.R")
+  source("scripts/03_bas_utils.R")
+}
 
 #' ITIP: Information-Theoretic Interaction Pruning
 #'
@@ -38,7 +45,7 @@ source("03_bas_utils.R")
 #' @examples
 #' # See examples at end of file
 itip <- function(data, outcome, epsilon = 0.01,
-                 threshold_method = "fixed", verbose = TRUE) {
+                 threshold_method = "fixed", n_bins = 3, verbose = TRUE) {
   if (verbose) cat("=== ITIP Algorithm ===\n")
 
   # Step 1: Identify variables with missing data
@@ -142,7 +149,7 @@ itip <- function(data, outcome, epsilon = 0.01,
     I <- interactions[[paste0("I_", col)]]
 
     # Calculate IG(I | Z)
-    IG <- calculate_conditional_ig_discrete(Y, Z, I)
+    IG <- calculate_conditional_ig_discrete(Y, Z, I, n_bins = n_bins)
 
     ig_results <- rbind(ig_results, data.frame(
       variable = col,

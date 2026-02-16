@@ -6,7 +6,11 @@
 library(ggplot2)
 library(caret) # For cross-validation
 
-source("01_ig_calculation.R") # Load IG calculation functions
+if (file.exists("01_ig_calculation.R")) {
+  source("01_ig_calculation.R") # Load IG calculation functions
+} else {
+  source("scripts/01_ig_calculation.R")
+}
 
 
 #' Fixed Threshold Approach
