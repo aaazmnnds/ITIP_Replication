@@ -39,13 +39,15 @@ if (file.exists("01_ig_calculation.R")) {
 #'   - missing_indicators: Binary indicators for missingness
 #'   - interactions: Generated interaction terms
 #'   - ig_results: IG values for all interactions
-#'   - pruned_features: Features to keep after pruning
+#'   - pruned_features: Features to keep after screening and confirmation
 #'   - bas_results: BAS model results (PIP, best model)
 #'   - pruning_stats: Summary statistics
+#'   - stage1_kept: Interactions that passed Stage 1 screening
+#'   - stage2_results: p-values from LRT confirmation step
 #' @examples
 #' # See examples at end of file
-itip <- function(data, outcome, epsilon = 0.01,
-                 threshold_method = "fixed", n_bins = 3, verbose = TRUE) {
+itip <- function(data, outcome, epsilon = 0.01, tau = 0.001,
+                 threshold_method = "fixed", n_bins = 3, verbose = TRUE, X_imputed = NULL) {
   if (verbose) cat("=== ITIP Algorithm ===\n")
 
   # Step 1: Identify variables with missing data
@@ -70,7 +72,9 @@ itip <- function(data, outcome, epsilon = 0.01,
         missing_indicators = character(0),
         kept_interactions = character(0)
       ),
-      pruning_stats = list(n_pruned = 0, pct_pruned = 0)
+      pruning_stats = list(n_pruned_stage1 = 0, n_pruned_stage2 = 0, pct_pruned = 0),
+      stage1_kept = character(0),
+      stage2_results = NULL
     ))
   }
 
@@ -99,20 +103,24 @@ itip <- function(data, outcome, epsilon = 0.01,
   }
 
   # Step 3: Impute missing data using missForest
-  if (verbose) cat("\nStep 3: Imputing missing data with missForest...\n")
-
-  # missForest requires all numeric or all factor
-  # Convert to appropriate types
-  X_for_imputation <- X
-
-  # Run missForest
-  set.seed(42) # For reproducibility
-  imputation_result <- missForest(X_for_imputation, verbose = verbose)
-
-  X_imputed <- imputation_result$ximp
+  if (is.null(X_imputed)) {
+    if (verbose) cat("\nStep 3: Imputing missing data with missForest...\n")
+    X_for_imputation <- X
+    set.seed(42) # For reproducibility
+    imputation_result <- missForest(X_for_imputation, verbose = verbose)
+    X_imputed <- imputation_result$ximp
+  } else {
+    if (verbose) cat("\nStep 3: Using provided pre-imputed data...\n")
+    # Verify dimensions
+    if (nrow(X_imputed) != nrow(X) || ncol(X_imputed) != ncol(X)) {
+      stop("Provided X_imputed must have same dimensions as features in data")
+    }
+  }
 
   if (verbose) {
-    cat(sprintf("  Imputation error (OOB): %.4f\n", imputation_result$OOBerror))
+    if (!is.null(X_imputed) && exists("imputation_result")) {
+      cat(sprintf("  Imputation error (OOB): %.4f\n", imputation_result$OOBerror))
+    }
   }
 
   # Step 4: Generate interaction terms
@@ -179,22 +187,22 @@ itip <- function(data, outcome, epsilon = 0.01,
     warning("Unknown threshold method. Using fixed threshold.")
   }
 
-  # Step 7: Prune interactions
-  if (verbose) cat("\nStep 7: Pruning low-IG interactions...\n")
+  # Step 7: Stage 1 - Pruning low-IG interactions (Screening)
+  if (verbose) cat("\nStep 7: Stage 1 Screening - Pruning low-IG interactions...\n")
 
   # Identify interactions to keep
   keep_interactions <- ig_results$variable[ig_results$IG >= epsilon]
   prune_interactions <- ig_results$variable[ig_results$IG < epsilon]
 
-  n_pruned <- length(prune_interactions)
-  pct_pruned <- 100 * n_pruned / length(missing_cols)
+  n_pruned_stage1 <- length(prune_interactions)
+  pct_pruned <- 100 * n_pruned_stage1 / length(missing_cols)
 
   if (verbose) {
     cat(sprintf(
-      "  Pruned %d / %d interactions (%.1f%%)\n",
-      n_pruned, length(missing_cols), pct_pruned
+      "  Stage 1 Pruned %d / %d interactions (%.1f%%)\n",
+      n_pruned_stage1, length(missing_cols), 100 * n_pruned_stage1 / length(missing_cols)
     ))
-    if (n_pruned > 0) {
+    if (n_pruned_stage1 > 0) {
       cat("  Pruned interactions:\n")
       for (var in prune_interactions) {
         ig_val <- ig_results$IG[ig_results$variable == var]
@@ -210,6 +218,78 @@ itip <- function(data, outcome, epsilon = 0.01,
     }
   }
 
+  # Step 7.5: Stage 2 - Confirmatory Test (Nested Model LRT)
+  if (verbose) cat("\nStep 7.5: Stage 2 Confirmation - Likelihood-Ratio Test with FDR & Effect Size...\n")
+  
+  stage2_results <- data.frame(variable=character(), p_value=numeric(), effect_size=numeric(), stringsAsFactors=FALSE)
+  final_keep_interactions <- character(0)
+  
+  if (length(keep_interactions) > 0) {
+    # Build base data frame with main effects (X_imputed and Z)
+    base_data <- cbind(X_imputed, missing_indicators)
+    base_data[[outcome]] <- Y
+    
+    # Check if Y is binary to use logistic, else linear
+    family <- if (length(unique(Y[!is.na(Y)])) == 2) binomial() else gaussian()
+    
+    # Fit base model
+    fit_base <- glm(as.formula(paste(outcome, "~ .")), data=base_data, family=family)
+    
+    for (var in keep_interactions) {
+      # Fit extended model adding the specific interaction
+      I_col <- paste0("I_", var)
+      ext_data <- base_data
+      ext_data[[I_col]] <- interactions[[I_col]]
+      fit_ext <- glm(as.formula(paste(outcome, "~ .")), data=ext_data, family=family)
+      
+      # Likelihood Ratio Test
+      lrt <- anova(fit_base, fit_ext, test="Chisq")
+      p_val <- lrt$`Pr(>Chi)`[2]
+      
+      # Effect size (McFadden pseudo-R^2 change or deviance explained difference)
+      # delta_R2 = (Dev_base - Dev_ext) / Dev_null
+      eff_size <- (fit_base$deviance - fit_ext$deviance) / fit_base$null.deviance
+      
+      stage2_results <- rbind(stage2_results, data.frame(
+        variable = var,
+        p_value = p_val,
+        effect_size = eff_size,
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    # FDR Correction
+    stage2_results$p_value_adj <- p.adjust(stage2_results$p_value, method="BH")
+    
+    # Define effect size threshold (tau for at least some additional variance explained)
+    # This should be explicitly justified in the paper.
+    effect_size_threshold <- tau
+    
+    # Retain if FDR-adjusted p < 0.05 AND effect size > threshold
+    for (i in 1:nrow(stage2_results)) {
+      if (!is.na(stage2_results$p_value_adj[i]) && 
+          stage2_results$p_value_adj[i] < 0.05 && 
+          stage2_results$effect_size[i] > effect_size_threshold) {
+        final_keep_interactions <- c(final_keep_interactions, stage2_results$variable[i])
+      }
+    }
+  }
+  
+  n_pruned_stage2 <- length(keep_interactions) - length(final_keep_interactions)
+  if (verbose) {
+    cat(sprintf("  Stage 2 Pruned %d / %d interactions\n", n_pruned_stage2, length(keep_interactions)))
+    if (length(final_keep_interactions) > 0) {
+      cat("  Final confirmed interactions:\n")
+      for (var in final_keep_interactions) {
+        row_idx <- which(stage2_results$variable == var)
+        cat(sprintf("    %s (FDR-p = %.4f, EffSize = %.4f)\n", 
+            var, stage2_results$p_value_adj[row_idx], stage2_results$effect_size[row_idx]))
+      }
+    } else {
+      cat("  No interactions survived confirmation.\n")
+    }
+  }
+
   # Step 8: Construct final feature set
   if (verbose) cat("\nStep 8: Constructing final feature set...\n")
 
@@ -220,8 +300,8 @@ itip <- function(data, outcome, epsilon = 0.01,
 
   pruned_features <- list(
     imputed_vars = names(X_imputed),
-    missing_indicators = names(missing_indicators),
-    kept_interactions = paste0("I_", keep_interactions)
+    missing_indicators = paste0("Z_", missing_cols),
+    kept_interactions = if (length(final_keep_interactions) > 0) paste0("I_", final_keep_interactions) else character(0)
   )
 
   if (verbose) {
@@ -229,8 +309,8 @@ itip <- function(data, outcome, epsilon = 0.01,
     cat(sprintf("    - %d imputed variables\n", length(pruned_features$imputed_vars)))
     cat(sprintf("    - %d missing indicators\n", length(pruned_features$missing_indicators)))
     cat(sprintf(
-      "    - %d interactions (pruned %d)\n",
-      length(pruned_features$kept_interactions), n_pruned
+      "    - %d interactions (pruned %d total)\n",
+      length(pruned_features$kept_interactions), n_pruned_stage1 + n_pruned_stage2
     ))
     cat(sprintf(
       "  Total features: %d\n",
@@ -276,19 +356,19 @@ itip <- function(data, outcome, epsilon = 0.01,
   # Return results
   return(list(
     data_imputed = data_imputed,
-    missing_indicators = missing_indicators,
-    interactions = interactions,
+    missing_indicators = names(missing_indicators),
+    interactions = if (length(final_keep_interactions) > 0) 
+      interactions[, paste0("I_", final_keep_interactions), drop=FALSE] else NULL,
     ig_results = ig_results,
     pruned_features = pruned_features,
-    bas_results = bas_results,
-    epsilon = epsilon,
-    epsilon = epsilon,
+    bas_results = NULL,
     pruning_stats = list(
-      n_total = length(missing_cols),
-      n_pruned = n_pruned,
-      pct_pruned = pct_pruned,
-      n_kept = length(keep_interactions)
-    )
+      n_pruned_stage1 = n_pruned_stage1,
+      n_pruned_stage2 = n_pruned_stage2,
+      pct_pruned = 100 * (n_pruned_stage1 + n_pruned_stage2) / length(missing_cols)
+    ),
+    stage1_kept = if (length(keep_interactions) > 0) paste0("I_", keep_interactions) else character(0),
+    stage2_results = stage2_results
   ))
 }
 
@@ -374,7 +454,7 @@ compare_itip_baseline <- function(data, outcome, epsilon = 0.01, n_folds = 5) {
 
     cat(sprintf(
       "  ITIP: %d features (pruned %d interactions)\n",
-      n_features_itip, itip_result$pruning_stats$n_pruned
+      n_features_itip, itip_result$pruning_stats$n_pruned_stage1 + itip_result$pruning_stats$n_pruned_stage2
     ))
   }
 

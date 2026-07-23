@@ -1,7 +1,7 @@
 # ITIP Replication Package
 
 This repository contains the R code to reproduce the results and figures for the paper:
-**"Information-Theoretic Interaction Pruning for Machine Learning with Missing Data"**
+**"Information-Theoretic Interaction Pruning: A Principled Framework for Missing Data"**
 
 ## Directory Structure
 
@@ -13,7 +13,7 @@ This repository contains the R code to reproduce the results and figures for the
 *   `32_benchmark_mnar.R`: Reproduces the MNAR robustness study (Section 7.3).
 *   `33_benchmark_high_dim.R`: Reproduces the high-dimensional scalability study at $p=200$ (Section 7.4).
 *   `34_sensitivity_bins.R`: Reproduces the discretization sensitivity analysis (Section 9.3).
-*   `41_real_world_validation.R`: Code for the MIMIC-III application (Section 8).
+*   `41_real_world_validation.R`: Code for the MIMIC-III application using the two-stage screening-and-confirmation framework (Section 8).
 
 ## Prerequisites
 
@@ -67,8 +67,8 @@ The MIMIC-III data used in Section 8 requires a signed data use agreement and ca
 ## Author & Contact
 
 **Azman Nads**  
-Mindanao State University - Tawi-Tawi College of Technology and Oceanography  
-Bongao, Tawi-Tawi, Philippines  
+Informatics and Data Science Program  
+Hiroshima University  
 Email: `azmannads@msutawi-tawi.edu.ph`
 
 For questions regarding the code or the paper, please open a GitHub issue or contact the author via email.
